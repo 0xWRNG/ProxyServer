@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="CacheManager.cs" />
+    <File Path="ProxyServer.cs" />
+  </Folder>
+  <Project Path="ProxyServer.csproj" />
+</Solution>
