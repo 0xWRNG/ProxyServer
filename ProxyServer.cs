@@ -62,56 +62,6 @@ public class ProxyServer
     }
 
     #region Handle methods
-    //private async Task HandleHTTP(NetworkStream clientStream, string requestText)
-    //{
-    //    string? host = ParseHost(requestText, out int port);
-    //    if (host == null)
-    //    {
-    //        Console.WriteLine("[?]: Host not found");
-    //        return;
-    //    }
-    //    string firstLine = requestText.Split("\r\n")[0];
-    //    string url = firstLine.Split(' ')[1];
-
-    //    if (_useCache && _cacheManager!=null && _cacheManager.Get(url, out byte[] cachedData))
-    //    {
-    //        Console.WriteLine($"[i]: Using cache for: {url}");
-    //        await clientStream.WriteAsync(cachedData, 0, cachedData.Length);
-    //        return;
-    //    }
-
-    //    Console.WriteLine($"[i]: HTTP to {host}:{port}");
-
-    //    string fixedRequest = FixRequestLine(requestText);
-    //    fixedRequest = fixedRequest.Replace("Connection: keep-alive", "Connection: close");
-    //    byte[] requestBytes = Encoding.ASCII.GetBytes(fixedRequest);
-
-    //    using (TcpClient server = new TcpClient())
-    //    {
-    //        await server.ConnectAsync(host, port);
-    //        using (NetworkStream serverStream = server.GetStream())
-    //        {
-    //            await serverStream.WriteAsync(requestBytes, 0, requestBytes.Length);
-    //            using (MemoryStream responseBuffer = new MemoryStream())
-    //            {
-    //                byte[] buffer = new byte[8192];
-    //                while (true)
-    //                {
-    //                    int bytesRead = await serverStream.ReadAsync(buffer, 0, buffer.Length);
-    //                    if (bytesRead == 0) break;
-
-    //                    responseBuffer.Write(buffer, 0, bytesRead);
-    //                    await clientStream.WriteAsync(buffer, 0, bytesRead);
-    //                }
-    //                if (_useCache && _cacheManager != null)
-    //                {
-    //                    _cacheManager.Save(url, responseBuffer.ToArray());
-    //                }
-    //            }
-    //        }
-    //    }
-    //}
-
     private async Task HandleHTTP(NetworkStream clientStream, string requestText)
     {
         string? host = ParseHost(requestText, out int port);
