@@ -7,20 +7,44 @@ namespace ProxyServer.Utils
 {
     public static class ResponseHelper
     {
-        public static async Task SendForbidden(TcpClient client)
+        public static async Task SendAsync(NetworkStream stream, byte[] data)
+        {
+            await stream.WriteAsync(data, 0, data.Length);
+        }
+        public static async Task SendStatusAsync(
+            NetworkStream stream,
+            int statusCode,
+            string reasonPhrase,
+            string body = "")
         {
             string response =
-                "HTTP/1.1 403 Forbidden\r\n" +
-                "Content-Length: 0\r\n\r\n";
+                $"HTTP/1.1 {statusCode} {reasonPhrase}\r\n" +
+                $"Content-Length: {Encoding.UTF8.GetByteCount(body)}\r\n" +
+                "Connection: close\r\n" +
+                "\r\n" +
+                body;
 
-            await Send(client, Encoding.UTF8.GetBytes(response));
+            byte[] bytes = Encoding.UTF8.GetBytes(response);
+            await SendAsync(stream, bytes);
         }
+        public static Task SendForbidden(NetworkStream stream)
+            => SendStatusAsync(stream, 403, "Forbidden");
 
-        public static async Task Send(TcpClient client, byte[] data)
+        public static Task SendBadRequest(NetworkStream stream)
+            => SendStatusAsync(stream, 400, "Bad Request");
+
+        public static Task SendBadGateway(NetworkStream stream)
+            => SendStatusAsync(stream, 502, "Bad Gateway");
+
+        public static async Task SendConnectionEstablished(NetworkStream stream)
         {
-            NetworkStream stream = client.GetStream();
-            await stream.WriteAsync(data, 0, data.Length);
-            client.Close();
+            string response =
+            "HTTP/1.1 200 Connection Established\r\n" +
+            "Proxy-Agent: MyProxy/1.0\r\n" +
+            "\r\n";
+
+            byte[] bytes = Encoding.ASCII.GetBytes(response);
+            await SendAsync(stream, bytes);
         }
     }
 }
