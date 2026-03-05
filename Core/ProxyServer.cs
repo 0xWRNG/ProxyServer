@@ -29,7 +29,10 @@ namespace ProxyServer.Core
             _logger = new Logger("log");
 
             var cache = new LruCache(100);
-            var filter = new DomainFilter();
+            var filter = new FilterPipeline();
+            filter.AddFilter(new DomainFilter(new[] { "youtube.com", "discord.com" }));
+            filter.AddFilter(new UrlFilter(new[] { "/ads/", "/tracking/" }));
+            filter.AddFilter(new MimeFilter(new[] { "image/png" }));
             var balanser = reverseProxy ? new RoundRobinBalancer(backends ?? new List<string>()) : null;
 
             _httpHandler = new HttpHandler(

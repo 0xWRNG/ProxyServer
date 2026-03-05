@@ -153,7 +153,11 @@ namespace ProxyServer.Protocol
                     response.LastModified = dt;
                 }
             }
-
+            if (response.StatusCode == 304 || response.StatusCode == 204)
+            {
+                response.Body = Array.Empty<byte>();
+                return response;
+            }
             response.Body = await ReadBodyAsync(stream, response);
             return response;
         }
@@ -296,9 +300,9 @@ namespace ProxyServer.Protocol
             var request = new HttpRequest(rawRequest);
             _logger.Log(LogLevels.Protocol, $"[HTTP]: {request.Method} {request.Host}:{request.Port}{request.Path}");
 
-            if (_filter != null && !_filter.IsAllowed(request.Host))
+            if (_filter != null && !_filter.IsAllowed(request))
             {
-                _logger.Log(LogLevels.Protocol, $"[FILTER]: Domain is not alowed:{request.Host}");
+                _logger.Log(LogLevels.Protocol, $"[FILTER]: { _filter.Reason}");
                 await ResponseHelper.SendForbidden(client.GetStream());
                 return;
             }
@@ -355,6 +359,12 @@ namespace ProxyServer.Protocol
             await serverStream.WriteAsync(requestBytes);
 
             var response = await HttpResponse.ReadAsync(serverStream);
+            if (_filter != null && !_filter.IsAllowed(response))
+            {
+                _logger.Log(LogLevels.Protocol, $"[FILTER]: {_filter.Reason}");
+                await ResponseHelper.SendForbidden(clientStream);
+                return;
+            }
 
             if (response.StatusCode == 304 && cached != null)
             {
@@ -416,6 +426,7 @@ namespace ProxyServer.Protocol
                     $"[CACHE]: Saved {request.Path} ({responseBytes.Length} bytes)");
             }
         }
+            
         private Task<byte[]> ForwardToBackend(string backend, string request)
         {
             return Task.FromResult(new byte[0]);

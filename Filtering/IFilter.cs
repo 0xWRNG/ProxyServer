@@ -7,6 +7,8 @@ namespace ProxyServer.Filtering
 {
     public interface IFilter
     {
-        bool IsAllowed(string request);
+        string? Reason { get; }
+        bool IsAllowed(HttpRequest request);
+        bool IsAllowed(HttpResponse response);
     }
 }

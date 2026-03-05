@@ -41,9 +41,9 @@ namespace ProxyServer.Protocol
                 _logger.Log(LogLevels.Protocol, $"[REVERSE HTTPS]: Forwarding CONNECT {request.Host}:{request.Port} -> {targetHost}:{targetPort}");
             }
 
-            if (_filter!=null && !_filter.IsAllowed(request.Host))
+            if (_filter!=null && !_filter.IsAllowed(request))
             {
-                _logger.Log(LogLevels.Protocol, $"[FILTER]: Domain is not alowed: {request.Host}");
+                _logger.Log(LogLevels.Protocol, $"[FILTER]: {_filter.Reason}");
                 await ResponseHelper.SendForbidden(client.GetStream());
                 return;
             }
