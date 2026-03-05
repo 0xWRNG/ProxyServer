@@ -21,7 +21,7 @@ namespace ProxyServer.Core
         private readonly Socks5Handler _socksHandler;
 
 
-        public ProxyServer(int port)
+        public ProxyServer(int port, bool useCache, bool useFilter, bool reverseProxy, List<string>? backends)
         {
             _port = port;
             _connectionManager = new ConnectionManager(100);
@@ -30,22 +30,33 @@ namespace ProxyServer.Core
 
             var cache = new LruCache(100);
             var filter = new DomainFilter();
-            var balancer = new RoundRobinBalancer(new List<string>
-        {
-            "http://localhost:5001",
-            "http://localhost:5002"
-        });
+            var balanser = reverseProxy ? new RoundRobinBalancer(backends ?? new List<string>()) : null;
 
-            _httpHandler = new HttpHandler(cache, filter, balancer, _stats, _logger);
-            _httpsHandler = new HttpsTunnelHandler(filter, _stats, _logger);
+            _httpHandler = new HttpHandler(
+                cache: useCache ? cache : null,
+                balancer: reverseProxy ? balanser : null,
+                filter: useFilter ? filter : null,
+                stats: _stats,
+                logger: _logger
+                );
+
+            _httpsHandler = new HttpsTunnelHandler(
+                filter: useFilter ? filter : null,
+                stats: _stats,
+                logger: _logger
+                );
             _socksHandler = new Socks5Handler(_stats);
         }
+       
 
         public async Task StartAsync()
         {
             TcpListener listener = new TcpListener(IPAddress.Any, _port);
+            
             listener.Start();
-
+            
+            string line = string.Concat(Enumerable.Repeat("─", Console.WindowWidth));
+            Console.WriteLine($"{line}\nProxy started at port {_port}\n{line}");
             while (true)
             {
                 TcpClient client = await listener.AcceptTcpClientAsync();
@@ -56,30 +67,44 @@ namespace ProxyServer.Core
         private async Task HandleClientAsync(TcpClient client)
         {
             await _connectionManager.AcquireAsync();
+
             var remoteEndPoint = client.Client.RemoteEndPoint as IPEndPoint;
             var clientIp = remoteEndPoint?.Address.ToString();
             var clientPort = remoteEndPoint?.Port.ToString();
+
             _logger.Log(LogLevels.Connection, $"CONNECT {clientIp}:{clientPort}");
+
             try
             {
                 NetworkStream stream = client.GetStream();
-                string request = await RequestReader.ReadAsync(stream);
-                if (string.IsNullOrWhiteSpace(request))
-                {
-                    _logger.Log(LogLevels.Connection, "Empty request from {0}:{1}", clientIp ?? "X", clientPort ?? "X");
-                    return;
-                }
 
-                if (IsHttps(request))
-                    await _httpsHandler.HandleAsync(client, request);
-                else if (IsHttp(request))
-                    await _httpHandler.HandleAsync(client, request);
-                else
-                    await _socksHandler.HandleAsync(client);
+                while (true)
+                {
+                    string request = await RequestReader.ReadAsync(stream);
+
+                    if (string.IsNullOrWhiteSpace(request))
+                        break;
+
+                    if (IsHttps(request))
+                    {
+                        await _httpsHandler.HandleAsync(client, request);
+                        break;
+                    }
+                    else if (IsHttp(request))
+                    {
+                        await _httpHandler.HandleAsync(client, request);
+                    }
+                    else
+                    {
+                        await _socksHandler.HandleAsync(client);
+                        break;
+                    }
+                }
             }
             catch (Exception ex)
             {
-                _logger.Log(LogLevels.Transport, $"Error {0}:{1} - {2}", clientIp??"X", clientPort ?? "X", ex.Message);
+                _logger.Log(LogLevels.Transport,
+                    $"Error {clientIp ?? "X"}:{clientPort ?? "X"} - {ex.Message}");
             }
             finally
             {

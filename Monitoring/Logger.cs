@@ -55,7 +55,7 @@ namespace ProxyServer.Monitoring
                 {
                     var indent = GetIndent(level);
                     var timestamp = DateTime.Now;
-                    var fullMessage = $"{timestamp:HH:mm:ss} | {indent}{message}";
+                    var fullMessage = $"{timestamp:HH:mm:ss} │ {indent}{message}";
                     Console.WriteLine(fullMessage);
                     await WriteToFileAsync(fullMessage, timestamp);
                 }

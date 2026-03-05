@@ -49,29 +49,5 @@ namespace ProxyServer.Utils
 
             return false;
         }
-        private static string? ParseHost(string request, out int port)
-        {
-            port = 80;
-            using (StringReader reader = new StringReader(request))
-            {
-                string? line;
-                while ((line = reader.ReadLine()) != null)
-                {
-                    if (line.StartsWith("Host:", StringComparison.OrdinalIgnoreCase))
-                    {
-                        string host = line.Substring(5).Trim();
-                        if (host.Contains(":"))
-                        {
-                            var parts = host.Split(':');
-                            port = int.Parse(parts[1]);
-                            return parts[0];
-                        }
-                        return host;
-                    }
-
-                }
-            }
-            return null;
-        }
     }
 }

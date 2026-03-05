@@ -12,10 +12,10 @@ namespace ProxyServer.Protocol
     {
         private readonly StatisticsCollector _stats;
         private readonly Logger _logger;
-        private readonly IFilter _filter;
+        private readonly IFilter? _filter;
 
 
-        public HttpsTunnelHandler(IFilter filter, StatisticsCollector stats, Logger logger)
+        public HttpsTunnelHandler(IFilter? filter, StatisticsCollector stats, Logger logger)
         {
             _filter = filter;
             _stats = stats;
@@ -28,7 +28,7 @@ namespace ProxyServer.Protocol
                 return;
 
             var request = new HttpRequest(rawRequest);
-            if (!_filter.IsAllowed(request.Host))
+            if (_filter!=null && !_filter.IsAllowed(request.Host))
             {
                 _logger.Log(LogLevels.Protocol, $"[FILTER]: Domain is not alowed: {request.Host}");
                 await ResponseHelper.SendForbidden(client.GetStream());

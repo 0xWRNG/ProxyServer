@@ -91,21 +91,188 @@ namespace ProxyServer.Protocol
             return sb.ToString();
         }
     }
+    public class HttpResponse
+    {
+        public int StatusCode { get; set; }
+        public string ReasonPhrase { get; set; } = "";
+        public byte[] Body { get; set; } = Array.Empty<byte>();
+        public string Version { get; set; } = "";
+        public Dictionary<string, string> Headers { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public bool IsChunked =>
+        Headers.TryGetValue("Transfer-Encoding", out var value) &&
+        value.Contains("chunked", StringComparison.OrdinalIgnoreCase);
+
+        public long? ContentLength =>
+            Headers.TryGetValue("Content-Length", out var value) &&
+            long.TryParse(value, out var len) ? len : null;
+        public byte[] ToByteArray()
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"{Version} {StatusCode} {ReasonPhrase}");
+
+            foreach (var header in Headers)
+                sb.AppendLine($"{header.Key}: {header.Value}");
+
+            sb.AppendLine();
+            var headerBytes = Encoding.UTF8.GetBytes(sb.ToString());
+            return headerBytes.Concat(Body).ToArray();
+        }
+
+        public static async Task<HttpResponse> ReadAsync(NetworkStream stream)
+        {
+            var response = new HttpResponse();
+            string headersText = await ReadHeadersAsync(stream);
+
+            var headerLines = headersText.Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
+
+            var statusLineParts = headerLines[0].Split(' ', 3);
+
+            response.Version = statusLineParts[0];
+            response.StatusCode = int.Parse(statusLineParts[1]);
+            response.ReasonPhrase = statusLineParts.Length > 2 ? statusLineParts[2] : "";
+
+            foreach (var line in headerLines.Skip(1))
+            {
+                int idx = line.IndexOf(':');
+                if (idx <= 0) continue;
+                var key = line[..idx].Trim();
+                var val = line[(idx + 1)..].Trim();
+                response.Headers[key] = val;
+            }
+
+            response.Body = await ReadBodyAsync(stream, response);
+            return response;
+        }
+        private static async Task<string> ReadHeadersAsync(NetworkStream stream)
+        {
+            var buffer = new List<byte>();
+            var temp = new byte[1];
+
+            while (true)
+            {
+                int read = await stream.ReadAsync(temp, 0, 1);
+                if (read == 0)
+                    break;
+
+                buffer.Add(temp[0]);
+
+                int count = buffer.Count;
+                if (count >= 4 &&
+                    buffer[count - 4] == '\r' &&
+                    buffer[count - 3] == '\n' &&
+                    buffer[count - 2] == '\r' &&
+                    buffer[count - 1] == '\n')
+                {
+                    break;
+                }
+            }
+
+            return Encoding.UTF8.GetString(buffer.ToArray());
+        }
+        private static async Task<byte[]> ReadBodyAsync(NetworkStream stream, HttpResponse response)
+        {
+            var ms = new MemoryStream();
+            var buffer = new byte[8192];
+
+            if (response.IsChunked)
+            {
+                while (true)
+                {
+                    string chunkSizeLine = await ReadLineAsync(stream);
+                    int chunkSize = int.Parse(chunkSizeLine, System.Globalization.NumberStyles.HexNumber);
+
+                    if (chunkSize == 0)
+                    {
+                        await ReadLineAsync(stream);
+                        break;
+                    }
+
+                    int remaining = chunkSize;
+
+                    while (remaining > 0)
+                    {
+                        int read = await stream.ReadAsync(
+                            buffer, 0, Math.Min(buffer.Length, remaining));
+
+                        if (read == 0)
+                            break;
+
+                        ms.Write(buffer, 0, read);
+                        remaining -= read;
+                    }
+
+                    await ReadLineAsync(stream);
+                }
+            }
+            else if (response.ContentLength.HasValue)
+            {
+                long remaining = response.ContentLength.Value;
+
+                while (remaining > 0)
+                {
+                    int read = await stream.ReadAsync(
+                        buffer, 0, (int)Math.Min(buffer.Length, remaining));
+
+                    if (read == 0)
+                        break;
+
+                    ms.Write(buffer, 0, read);
+                    remaining -= read;
+                }
+            }
+            else
+            {
+                int read;
+                while ((read = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                    ms.Write(buffer, 0, read);
+            }
+
+            return ms.ToArray();
+        }
+        private static async Task<string> ReadLineAsync(NetworkStream stream)
+        {
+            var bytes = new List<byte>();
+            var buffer = new byte[1];
+
+            while (true)
+            {
+                int read = await stream.ReadAsync(buffer, 0, 1);
+                if (read == 0)
+                    break;
+
+                bytes.Add(buffer[0]);
+
+                int count = bytes.Count;
+                if (count >= 2 &&
+                    bytes[count - 2] == '\r' &&
+                    bytes[count - 1] == '\n')
+                    break;
+            }
+
+            return Encoding.UTF8
+                .GetString(bytes.ToArray())
+                .TrimEnd('\r', '\n');
+        }
+    }
     public class HttpHandler : IProtocolHandler
     {
-        private readonly ICache _cache;
-        private readonly IFilter _filter;
-        private readonly ILoadBalancer _balancer;
-        private readonly StatisticsCollector _stats;
-        private readonly  Logger _logger;
 
-        public HttpHandler(ICache cache, IFilter filter,
-                           ILoadBalancer balancer,
-                           StatisticsCollector stats, Logger logger)
+        private readonly IFilter? _filter;
+        private readonly ICache? _cache;
+        private readonly ILoadBalancer? _balancer;
+
+        private readonly StatisticsCollector _stats;
+        private readonly Logger _logger;
+
+
+
+        public HttpHandler(ICache? cache, ILoadBalancer? balancer, IFilter? filter,
+                   StatisticsCollector stats, Logger logger)
         {
             _cache = cache;
-            _filter = filter;
             _balancer = balancer;
+            _filter = filter;
             _stats = stats;
             _logger = logger;
         }
@@ -118,7 +285,7 @@ namespace ProxyServer.Protocol
             var request = new HttpRequest(rawRequest ?? "");
             _logger.Log(LogLevels.Protocol, $"[HTTP]: {request.Method} {request.Host}:{request.Port}{request.Path}");
 
-            if (!_filter.IsAllowed(request.Host))
+            if (_filter!=null && !_filter.IsAllowed(request.Host))
             {
                 _logger.Log(LogLevels.Protocol, $"[FILTER]: Domain is not alowed:{request.Host}");
                 await ResponseHelper.SendForbidden(client.GetStream());
@@ -126,7 +293,7 @@ namespace ProxyServer.Protocol
             }
 
             string key = ICache.GetCacheKey(request.Host, request.Port, request.Path);
-            if (_cache.Get(key, out var cached))
+            if (_cache != null && _cache.Get(key, out var cached))
             {
                 _logger.Log(LogLevels.Protocol, $"[CACHE]: Hit {request.Path} ({cached.Length} bytes)");
                 await ResponseHelper.SendAsync(client.GetStream(), cached);
@@ -147,27 +314,28 @@ namespace ProxyServer.Protocol
         {
             using var server = new TcpClient();
             await server.ConnectAsync(request.Host, request.Port);
+
             var serverStream = server.GetStream();
 
-            request.Headers["Connection"] = "close";
-            string rawRequest = request.ToRawRequest();
-            byte[] requestBytes = Encoding.UTF8.GetBytes(rawRequest);
-            await serverStream.WriteAsync(requestBytes, 0, requestBytes.Length);
+            var requestBytes = Encoding.UTF8.GetBytes(request.ToRawRequest());
+            await serverStream.WriteAsync(requestBytes);
 
-            using var ms = new MemoryStream();
-            byte[] buffer = new byte[8192];
-            int bytesRead;
-
-            while ((bytesRead = await serverStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+            var response = await HttpResponse.ReadAsync(serverStream);
+            if (response.IsChunked)
             {
-                await clientStream.WriteAsync(buffer, 0, bytesRead);
-                ms.Write(buffer, 0, bytesRead);
+                response.Headers.Remove("Transfer-Encoding");
+                response.Headers["Content-Length"] = response.Body.Length.ToString();
             }
+            var responseBytes = response.ToByteArray();
+            await clientStream.WriteAsync(responseBytes);
 
-             byte[] responseData = ms.ToArray();
-            string key = ICache.GetCacheKey(request.Host, request.Port, request.Path);
-            _cache.Save(key, responseData);
-            _logger.Log(LogLevels.Protocol, $"[CACHE]: Saved {request.Path} ({responseData.Length} bytes)");
+            if (_cache != null && response.StatusCode == 200)
+            {
+                string key = ICache.GetCacheKey(request.Host, request.Port, request.Path);
+
+                _cache.Save(key, responseBytes);
+                _logger.Log(LogLevels.Protocol, $"[CACHE]: Saved {request.Path} ({responseBytes.Length} bytes)");
+            }
         }
         private Task<byte[]> ForwardToBackend(string backend, string request)
         {
