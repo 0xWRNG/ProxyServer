@@ -9,7 +9,7 @@ class Program
             useCache: true,
             useFilter: true,
             reverseProxy: false,
-            backends: null
+            backends: null //new List<String>() {"localhost:8081", "localhost:8082" }
             );
         await proxy.StartAsync();
     }

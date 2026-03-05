@@ -1,4 +1,5 @@
 ﻿using ProxyServer.Filtering;
+using ProxyServer.LoadBalancing;
 using ProxyServer.Monitoring;
 using ProxyServer.Utils;
 using System;
@@ -12,12 +13,14 @@ namespace ProxyServer.Protocol
     {
         private readonly StatisticsCollector _stats;
         private readonly Logger _logger;
+        private readonly ILoadBalancer? _balancer;
         private readonly IFilter? _filter;
 
 
-        public HttpsTunnelHandler(IFilter? filter, StatisticsCollector stats, Logger logger)
+        public HttpsTunnelHandler(IFilter? filter, ILoadBalancer? balancer, StatisticsCollector stats, Logger logger)
         {
             _filter = filter;
+            _balancer = balancer;
             _stats = stats;
             _logger = logger;
         }
@@ -26,8 +29,18 @@ namespace ProxyServer.Protocol
         {
             if (rawRequest == null)
                 return;
-
             var request = new HttpRequest(rawRequest);
+            string targetHost = request.Host;
+            int targetPort = request.Port;
+
+            if (_balancer != null)
+            {
+                var backend = _balancer.GetNextServer();
+                targetHost = backend.Host;
+                targetPort = backend.Port;
+                _logger.Log(LogLevels.Protocol, $"[REVERSE HTTPS]: Forwarding CONNECT {request.Host}:{request.Port} -> {targetHost}:{targetPort}");
+            }
+
             if (_filter!=null && !_filter.IsAllowed(request.Host))
             {
                 _logger.Log(LogLevels.Protocol, $"[FILTER]: Domain is not alowed: {request.Host}");
@@ -37,7 +50,7 @@ namespace ProxyServer.Protocol
             _logger.Log(LogLevels.Protocol,"[CONNECT]: {0}:{1}", request.Host, request.Port);
 
             using var server = new TcpClient();
-            await server.ConnectAsync(request.Host, request.Port);
+            await server.ConnectAsync(targetHost, targetPort);
 
             var clientStream = client.GetStream();
             var serverStream = server.GetStream();

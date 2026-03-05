@@ -97,6 +97,10 @@ namespace ProxyServer.Protocol
         public string ReasonPhrase { get; set; } = "";
         public byte[] Body { get; set; } = Array.Empty<byte>();
         public string Version { get; set; } = "";
+
+        public string ETag { get; set; }
+        public DateTime? LastModified { get; set; }
+
         public Dictionary<string, string> Headers { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         public bool IsChunked =>
@@ -139,6 +143,15 @@ namespace ProxyServer.Protocol
                 var key = line[..idx].Trim();
                 var val = line[(idx + 1)..].Trim();
                 response.Headers[key] = val;
+
+                if (key.Equals("ETag", StringComparison.OrdinalIgnoreCase))
+                    response.ETag = val;
+                else if (key.Equals("Last-Modified", StringComparison.OrdinalIgnoreCase) &&
+                     DateTime.TryParse(val, System.Globalization.CultureInfo.InvariantCulture,
+                     System.Globalization.DateTimeStyles.AdjustToUniversal, out var dt))
+                {
+                    response.LastModified = dt;
+                }
             }
 
             response.Body = await ReadBodyAsync(stream, response);
@@ -265,8 +278,6 @@ namespace ProxyServer.Protocol
         private readonly StatisticsCollector _stats;
         private readonly Logger _logger;
 
-
-
         public HttpHandler(ICache? cache, ILoadBalancer? balancer, IFilter? filter,
                    StatisticsCollector stats, Logger logger)
         {
@@ -282,10 +293,10 @@ namespace ProxyServer.Protocol
             if (rawRequest == null)
                 return;
 
-            var request = new HttpRequest(rawRequest ?? "");
+            var request = new HttpRequest(rawRequest);
             _logger.Log(LogLevels.Protocol, $"[HTTP]: {request.Method} {request.Host}:{request.Port}{request.Path}");
 
-            if (_filter!=null && !_filter.IsAllowed(request.Host))
+            if (_filter != null && !_filter.IsAllowed(request.Host))
             {
                 _logger.Log(LogLevels.Protocol, $"[FILTER]: Domain is not alowed:{request.Host}");
                 await ResponseHelper.SendForbidden(client.GetStream());
@@ -293,15 +304,25 @@ namespace ProxyServer.Protocol
             }
 
             string key = ICache.GetCacheKey(request.Host, request.Port, request.Path);
-            if (_cache != null && _cache.Get(key, out var cached))
+
+            CacheItem? cached = null;
+
+            if (_cache != null)
+                _cache.Get(key, out cached);
+            if (cached != null)
             {
-                _logger.Log(LogLevels.Protocol, $"[CACHE]: Hit {request.Path} ({cached.Length} bytes)");
-                await ResponseHelper.SendAsync(client.GetStream(), cached);
-                return;
+                if (!string.IsNullOrEmpty(cached.Etag))
+                    request.Headers["If-None-Match"] = cached.Etag;
+
+                if (cached.LastModified.HasValue)
+                    request.Headers["If-Modified-Since"] = cached.LastModified.Value.ToUniversalTime().ToString("R");
+
+                _logger.Log(LogLevels.Protocol, $"[CACHE]: Validate {request.Path}");
             }
+
             try
             {
-                await ForwardToTarget(client.GetStream(), request);
+                await ForwardToTarget(client.GetStream(), request, cached);
                 _stats.IncrementRequests();
             }
             catch
@@ -310,10 +331,23 @@ namespace ProxyServer.Protocol
                 await ResponseHelper.SendBadGateway(client.GetStream());
             }
         }
-        private async Task ForwardToTarget(NetworkStream clientStream, HttpRequest request)
+        private async Task ForwardToTarget(NetworkStream clientStream, HttpRequest request, CacheItem? cached)
         {
+            string backendHost = request.Host;
+            int backendPort = request.Port;
+
+            if (_balancer != null)
+            {
+                var backend = _balancer.GetNextServer();
+                backendHost = backend.Host;
+                backendPort = backend.Port;
+
+                _logger.Log(LogLevels.Protocol,
+                    $"[REVERSE]: Forwarding {request.Method} {request.Path} to {backendHost}:{backendPort}");
+            }
+
             using var server = new TcpClient();
-            await server.ConnectAsync(request.Host, request.Port);
+            await server.ConnectAsync(backendHost, backendPort);
 
             var serverStream = server.GetStream();
 
@@ -321,20 +355,65 @@ namespace ProxyServer.Protocol
             await serverStream.WriteAsync(requestBytes);
 
             var response = await HttpResponse.ReadAsync(serverStream);
+
+            if (response.StatusCode == 304 && cached != null)
+            {
+                await clientStream.WriteAsync(cached.Data);
+
+                _logger.Log(LogLevels.Protocol, $"[CACHE]: Validated HIT {request.Path} ({cached.Data.Length} bytes)");
+
+                return;
+            }
+
             if (response.IsChunked)
             {
                 response.Headers.Remove("Transfer-Encoding");
                 response.Headers["Content-Length"] = response.Body.Length.ToString();
             }
+
             var responseBytes = response.ToByteArray();
             await clientStream.WriteAsync(responseBytes);
 
-            if (_cache != null && response.StatusCode == 200)
+            if (_cache != null &&
+                response.StatusCode == 200 &&
+                request.Method.Equals("GET", StringComparison.OrdinalIgnoreCase))
             {
                 string key = ICache.GetCacheKey(request.Host, request.Port, request.Path);
 
-                _cache.Save(key, responseBytes);
-                _logger.Log(LogLevels.Protocol, $"[CACHE]: Saved {request.Path} ({responseBytes.Length} bytes)");
+                int? maxAge = null;
+
+                if (response.Headers.TryGetValue("Cache-Control", out var cc))
+                {
+                    var parts = cc.Split(',');
+
+                    foreach (var part in parts)
+                    {
+                        if (part.Trim().StartsWith("max-age"))
+                        {
+                            if (int.TryParse(part.Split('=')[1], out var s))
+                                maxAge = s;
+                        }
+                    }
+                }
+
+                DateTime? expires = null;
+
+                if (response.Headers.TryGetValue("Expires", out var exp))
+                {
+                    if (DateTime.TryParse(exp, out var dt))
+                        expires = dt;
+                }
+
+                _cache.Save(
+                    key,
+                    responseBytes,
+                    response.ETag,
+                    response.LastModified,
+                    maxAge ?? (expires.HasValue ? (int)(expires.Value - DateTime.UtcNow).TotalSeconds : null)
+                );
+
+                _logger.Log(LogLevels.Protocol,
+                    $"[CACHE]: Saved {request.Path} ({responseBytes.Length} bytes)");
             }
         }
         private Task<byte[]> ForwardToBackend(string backend, string request)

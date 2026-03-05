@@ -42,6 +42,7 @@ namespace ProxyServer.Core
 
             _httpsHandler = new HttpsTunnelHandler(
                 filter: useFilter ? filter : null,
+                balancer: reverseProxy ? balanser : null,
                 stats: _stats,
                 logger: _logger
                 );
