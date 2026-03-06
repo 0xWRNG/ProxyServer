@@ -1,5 +1,5 @@
 ﻿using ProxyServer.Monitoring;
-using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Text;
@@ -9,42 +9,51 @@ namespace ProxyServer.Protocol
     public class TcpTunnel
     {
         private readonly Logger _logger;
+
         public TcpTunnel(Logger logger)
         {
             _logger = logger;
         }
-        public async Task StartAsync(
-            NetworkStream clientStream,
-            NetworkStream serverStream, string host, int port)
-        {
-            
-            var clientToServer = PumpAsync(clientStream, serverStream);
-            var serverToClient = PumpAsync(serverStream, clientStream);
-            
-            await Task.WhenAny(clientToServer, serverToClient);
-            _logger.Log(LogLevels.Transport, "Tunnel closed {0}:{1}",host, port);
-        }
 
-        private async Task PumpAsync(
-            NetworkStream input,
-            NetworkStream output)
+        public async Task StartAsync(Stream clientStream, Stream remoteStream, string host, int port)
         {
-            var buffer = new byte[8192];
+            _logger.Log(LogLevels.Transport, $"Starting transparent tunnel for {host}:{port}");
+
+            var clientToRemote = PumpAsync(clientStream, remoteStream, "Client -> Remote");
+            var remoteToClient = PumpAsync(remoteStream, clientStream, "Remote -> Client");
 
             try
             {
-                while (true)
-                {
-                    int bytesRead = await input.ReadAsync(buffer, 0, buffer.Length);
-                    if (bytesRead == 0)
-                        break;
+                await Task.WhenAny(clientToRemote, remoteToClient);
+            }
+            finally
+            {
+                clientStream.Close();
+                remoteStream.Close();
+                _logger.Log(LogLevels.Transport, $"Tunnel closed for {host}:{port}");
+            }
+        }
 
+        private async Task PumpAsync(Stream input, Stream output, string direction)
+        {
+            var buffer = new byte[8192];
+            try
+            {
+                int bytesRead;
+                while ((bytesRead = await input.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                {
                     await output.WriteAsync(buffer, 0, bytesRead);
                 }
             }
-            catch(Exception ex)
+            catch (IOException) {}
+            catch (Exception ex)
             {
-                _logger.Log(LogLevels.Transport,$"Tunnel error: {0}", ex.Message);
+                _logger.Log(LogLevels.Transport, $"[{direction}] Tunnel pump failed: {ex.Message}");
+                throw;
+            }
+            finally
+            {
+                _logger.Log(LogLevels.Transport, $"[{direction}] Pumping finished");
             }
         }
     }

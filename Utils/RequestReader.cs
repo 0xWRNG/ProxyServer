@@ -7,7 +7,7 @@ namespace ProxyServer.Utils
 {
     public static class RequestReader
     {
-        public static async Task<string> ReadAsync(NetworkStream stream)
+        public static async Task<string> ReadAsync(Stream stream)
         {
             var buffer = new byte[8192];
             using var ms = new MemoryStream();

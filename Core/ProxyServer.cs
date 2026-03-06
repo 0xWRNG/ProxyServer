@@ -49,16 +49,16 @@ namespace ProxyServer.Core
                 stats: _stats,
                 logger: _logger
                 );
-            _socksHandler = new Socks5Handler(_stats);
+            _socksHandler = new Socks5Handler(_logger, _stats);
         }
-       
+
 
         public async Task StartAsync()
         {
             TcpListener listener = new TcpListener(IPAddress.Any, _port);
-            
+
             listener.Start();
-            
+
             string line = string.Concat(Enumerable.Repeat("─", Console.WindowWidth));
             Console.WriteLine($"{line}\nProxy started at port {_port}\n{line}");
             while (true)
@@ -82,9 +82,19 @@ namespace ProxyServer.Core
             {
                 NetworkStream stream = client.GetStream();
 
+                int firstByte = stream.ReadByte();
+                if (firstByte == -1)
+                    return;
+
+                var pushbackStream = new PushbackStream(stream, (byte)firstByte);
+                if (firstByte == 0x05)
+                {
+                    await _socksHandler.HandleAsync(client, firstByte.ToString());
+                    return;
+                }
                 while (true)
                 {
-                    string request = await RequestReader.ReadAsync(stream);
+                    string request = await RequestReader.ReadAsync(pushbackStream);
 
                     if (string.IsNullOrWhiteSpace(request))
                         break;
@@ -100,7 +110,8 @@ namespace ProxyServer.Core
                     }
                     else
                     {
-                        await _socksHandler.HandleAsync(client);
+                        _logger.Log(LogLevels.Transport,
+                            $"Unknown protocol from {clientIp}:{clientPort}");
                         break;
                     }
                 }
@@ -117,7 +128,7 @@ namespace ProxyServer.Core
                 _connectionManager.Release();
             }
         }
-        private bool IsHttps(string request) 
+        private bool IsHttps(string request)
         {
             return request.StartsWith("CONNECT");
         }
