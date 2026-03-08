@@ -54,12 +54,12 @@ The proxy server is configured using command-line arguments. Here's a list of av
 
 *   **Start a reverse proxy with two backends and no caching:**
     ```bash
-    dotnet run -- --reverse --backends http://localhost:3001,http://localhost:3002 --no-cache
+    dotnet run -- --reverse --backends "http://localhost:3001,http://localhost:3002" --no-cache
     ```
 
 *   **Start a proxy blocking specific domains and MIME types:**
     ```bash
-    dotnet run -- --block-domains facebook.com,twitter.com --block-mimes application/pdf
+    dotnet run -- --block-domains "facebook.com,twitter.com" --block-mimes application/pdf
     ```
 
 ### Runtime Controls
