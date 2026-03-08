@@ -16,8 +16,7 @@ This is a versatile proxy server application developed in C# that supports vario
 
 ### Prerequisites
 
-*   .NET SDK (version compatible with C# project)
-
+*   Tested on .NET SDK 10.0.200
 ### Building
 
 To build the project, navigate to the project's root directory in your terminal and run:
