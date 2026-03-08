@@ -37,5 +37,6 @@ namespace ProxyServer.Filtering
             }
             return true;
         }
+        public bool HasAnyFilter() => _filters.Any();
     }
 }

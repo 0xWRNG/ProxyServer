@@ -105,7 +105,7 @@ namespace ProxyServer.Protocol
             await stream.ReadExactlyAsync(portBytes, 0, 2);
             targetPort = (portBytes[0] << 8) | portBytes[1];
 
-            _logger.Log(LogLevels.Transport, $"SOCKS {cmd:X2} {targetHost}:{targetPort}, ATYP={atyp:X2}");
+            _logger.Log(LogLevels.Transport, $"SOCKS {GetVerboseCommand(cmd)} {targetHost}:{targetPort}, ATYP={atyp:X2}");
             return ((byte)cmd, targetHost, targetPort);
         }
 
@@ -442,6 +442,15 @@ namespace ProxyServer.Protocol
             await stream.FlushAsync();
         }
 
-
+        private string GetVerboseCommand(int num) 
+        {
+            return num switch
+            {
+                0x01 => "CONNECT",
+                0x02 => "BIND",
+                0x03 => "UDP ASSOCIATE",
+                _ => "UNKNOWN"
+            };
+        }
     }
 }

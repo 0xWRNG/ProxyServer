@@ -19,9 +19,10 @@ namespace ProxyServer.Core
         private readonly HttpHandler _httpHandler;
         private readonly HttpsTunnelHandler _httpsHandler;
         private readonly Socks5Handler _socksHandler;
+        private CancellationToken _cancellationToken;
+        private TcpListener? _listener;
 
-
-        public ProxyServer(int port, bool useCache, bool useFilter, bool reverseProxy, List<string>? backends)
+        public ProxyServer(int port, bool useCache, bool useFilter, bool reverseProxy, List<string>? backends, FilterPipeline? filterPipeline, CancellationToken cancellationToken)
         {
             _port = port;
             _connectionManager = new ConnectionManager(100);
@@ -29,43 +30,62 @@ namespace ProxyServer.Core
             _logger = new Logger("log");
 
             var cache = new LruCache(100);
-            var filter = new FilterPipeline();
-            filter.AddFilter(new DomainFilter(new[] { "youtube.com", "discord.com" }));
-            filter.AddFilter(new UrlFilter(new[] { "/ads/", "/tracking/" }));
-            filter.AddFilter(new MimeFilter(new[] { "image/png" }));
+
             var balanser = reverseProxy ? new RoundRobinBalancer(backends ?? new List<string>()) : null;
 
             _httpHandler = new HttpHandler(
                 cache: useCache ? cache : null,
                 balancer: reverseProxy ? balanser : null,
-                filter: useFilter ? filter : null,
+                filter: useFilter ? filterPipeline : null,
                 stats: _stats,
                 logger: _logger
                 );
 
             _httpsHandler = new HttpsTunnelHandler(
-                filter: useFilter ? filter : null,
+                filter: useFilter ? filterPipeline : null,
                 balancer: reverseProxy ? balanser : null,
                 stats: _stats,
                 logger: _logger
                 );
             _socksHandler = new Socks5Handler(_logger, _stats);
+            _cancellationToken = cancellationToken;
         }
+
 
 
         public async Task StartAsync()
         {
-            TcpListener listener = new TcpListener(IPAddress.Any, _port);
+            _listener = new TcpListener(IPAddress.Any, _port);
 
-            listener.Start();
+            _listener.Start();
 
             string line = string.Concat(Enumerable.Repeat("─", Console.WindowWidth));
             Console.WriteLine($"{line}\nProxy started at port {_port}\n{line}");
-            while (true)
+            while (!_cancellationToken.IsCancellationRequested)
             {
-                TcpClient client = await listener.AcceptTcpClientAsync();
-                _ = HandleClientAsync(client);
+                try
+                {
+                    TcpClient client = await _listener.AcceptTcpClientAsync(_cancellationToken);
+                    _ = HandleClientAsync(client);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (ObjectDisposedException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.Log(LogLevels.Connection, $"Error accepting client: {ex.Message}");
+                }
             }
+        }
+        public void Stop()
+        {
+            _listener?.Stop();
+            _logger.Log(LogLevels.Connection, "Proxy stopped.");
         }
 
         private async Task HandleClientAsync(TcpClient client)

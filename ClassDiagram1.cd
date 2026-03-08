@@ -1,0 +1,166 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ClassDiagram MajorVersion="1" MinorVersion="1" MembersFormat="FullSignature">
+  <Class Name="ProxyServer.Filtering.DomainFilter" Collapsed="true" BaseTypeListCollapsed="true">
+    <Position X="12.5" Y="0.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAIAAAAAAAAAAAgAAAAAAAAAAAAABAA=</HashCode>
+      <FileName>Filtering\Filters.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" Collapsed="true" />
+  </Class>
+  <Class Name="ProxyServer.Filtering.UrlFilter" Collapsed="true" BaseTypeListCollapsed="true">
+    <Position X="12.5" Y="1.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAIAAAAAAEAAAAAAAAAAAAAAAAAABAA=</HashCode>
+      <FileName>Filtering\Filters.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Orientation="Right" Position="0.1" Collapsed="true" />
+  </Class>
+  <Class Name="ProxyServer.Filtering.MimeFilter" Collapsed="true" BaseTypeListCollapsed="true">
+    <Position X="10.5" Y="1.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAIAAAAAAAAAAAAAAAAAAAAgAAAABAA=</HashCode>
+      <FileName>Filtering\Filters.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Orientation="Bottom" Position="1.3" Collapsed="true" />
+  </Class>
+  <Class Name="ProxyServer.Protocol.HttpRequest" Collapsed="true">
+    <Position X="7" Y="0.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>IAAAAAAAAAAAAAIAAAAgAAAICAAACAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Protocol\HttpHandler.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="ProxyServer.Protocol.HttpResponse" Collapsed="true">
+    <Position X="8.25" Y="0.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>KAAoAAAAAAAAQAAAkIADAAACCAAAABAAIAAAAAAAAAA=</HashCode>
+      <FileName>Protocol\HttpHandler.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="ProxyServer.Monitoring.Logger">
+    <Position X="0.5" Y="7" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AEAAAAAAACAAAAQAAAAAAAAAAAggAIAAAAAAAAgAAAg=</HashCode>
+      <FileName>Monitoring\Logger.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" />
+  </Class>
+  <Class Name="ProxyServer.Monitoring.StatisticsCollector">
+    <Position X="6.5" Y="7.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAABAAAgACAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Monitoring\StatisticsCollector.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="ProxyServer.Protocol.HttpsTunnelHandler">
+    <Position X="7" Y="5.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>EAAAAAAAAAAAAABAAAAACAAAIAAAAIAAAAAAAAAAAAA=</HashCode>
+      <FileName>Protocol\HttpsTunnelHandler.cs</FileName>
+    </TypeIdentifier>
+    <ShowAsAssociation>
+      <Field Name="_balancer" />
+      <Field Name="_filter" />
+      <Field Name="_logger" />
+      <Field Name="_stats" />
+    </ShowAsAssociation>
+    <Lollipop Position="0.2" />
+  </Class>
+  <Class Name="ProxyServer.Core.ConnectionManager" Collapsed="true">
+    <Position X="3.5" Y="2.75" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AEAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAABAAAAA=</HashCode>
+      <FileName>Core\ConnectionManager.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="ProxyServer.Protocol.Socks5Handler">
+    <Position X="7.75" Y="1.75" Width="2" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAQQAAAADBAAAICAAiIBAAAAAAAAAQAgAAAAA=</HashCode>
+      <FileName>Protocol\Socks5Handler.cs</FileName>
+    </TypeIdentifier>
+    <ShowAsAssociation>
+      <Field Name="_tunnel" />
+      <Field Name="_logger" />
+      <Field Name="_stats" />
+    </ShowAsAssociation>
+    <Lollipop Position="0.2" />
+  </Class>
+  <Class Name="ProxyServer.Filtering.FilterPipeline">
+    <Position X="3.5" Y="13.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAEAAAIAAAIAAAAAAAAAAAAAAAAAAAAABAA=</HashCode>
+      <FileName>Filtering\FilterPipeline.cs</FileName>
+    </TypeIdentifier>
+    <ShowAsCollectionAssociation>
+      <Field Name="_filters" />
+    </ShowAsCollectionAssociation>
+    <Lollipop Position="1.3" />
+  </Class>
+  <Class Name="ProxyServer.LoadBalancing.RoundRobinBalancer" Collapsed="true" BaseTypeListCollapsed="true">
+    <Position X="12" Y="5.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAgAQAAAAAAAAAAgAAAAAAAAAA=</HashCode>
+      <FileName>LoadBalancing\RoundRobinBalancer.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" Collapsed="true" />
+  </Class>
+  <Class Name="ProxyServer.Protocol.TcpTunnel">
+    <Position X="4" Y="0.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAIAAAAAAAAAAAAAAAAAAAAAIAAAAAAAAQAAAAAAAAA=</HashCode>
+      <FileName>Protocol\TcpTunnel.cs</FileName>
+    </TypeIdentifier>
+    <ShowAsAssociation>
+      <Field Name="_logger" />
+    </ShowAsAssociation>
+  </Class>
+  <Class Name="ProxyServer.Cache.CacheItem" Collapsed="true">
+    <Position X="7.25" Y="12.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>EAAAAAAAAAAAAAAAAAAQAAACAAAAABAAAAAAAAAAAAA=</HashCode>
+      <FileName>Cache\LruCache.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="ProxyServer.Cache.LruCache">
+    <Position X="7.25" Y="14" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAIAAAIAAgABAAAAABAQAAAAACAAAAAAAAABAAAA=</HashCode>
+      <FileName>Cache\LruCache.cs</FileName>
+    </TypeIdentifier>
+    <ShowAsCollectionAssociation>
+      <Field Name="_cache" />
+    </ShowAsCollectionAssociation>
+    <Lollipop Position="0.2" />
+  </Class>
+  <Interface Name="ProxyServer.Filtering.IFilter">
+    <Position X="3.5" Y="10.75" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAIAAAAAAAAAAAAAAAAAAAAAAAAABAA=</HashCode>
+      <FileName>Filtering\IFilter.cs</FileName>
+    </TypeIdentifier>
+  </Interface>
+  <Interface Name="ProxyServer.LoadBalancing.ILoadBalancer" Collapsed="true">
+    <Position X="0.5" Y="5.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>LoadBalancing\ILoadBalancer.cs</FileName>
+    </TypeIdentifier>
+  </Interface>
+  <Interface Name="ProxyServer.Cache.ICache" Collapsed="true">
+    <Position X="6.5" Y="10.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAIIAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Cache\ICache.cs</FileName>
+    </TypeIdentifier>
+  </Interface>
+  <Interface Name="ProxyServer.Protocol.IProtocolHandler" Collapsed="true">
+    <Position X="10.5" Y="0.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Protocol\IProtocolHandler.cs</FileName>
+    </TypeIdentifier>
+  </Interface>
+  <Font Name="Segoe UI" Size="9" />
+</ClassDiagram>
